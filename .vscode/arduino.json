@@ -1,7 +1,7 @@
 {
-    "board": "arduino:avr:nano",
-    "configuration": "cpu=atmega328old",
-    "sketch": "Nivel Intermedio\\AsistenteArduino\\AsistenteArduino.ino",
+    "board": "esp8266:esp8266:d1",
+    "configuration": "xtal=80,vt=flash,exception=legacy,ssl=all,eesz=4M2M,ip=lm2f,dbg=Disabled,lvl=None____,wipe=none,baud=921600",
+    "sketch": "Nivel Intermedio\\AsistenteESP8266\\AsistenteESP8266.ino",
     "programmer": "ArduinoISP",
-    "port": "COM8"
+    "port": "COM3"
 }

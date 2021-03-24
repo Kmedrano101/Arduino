@@ -10,9 +10,7 @@
                 "C:\\Program Files (x86)\\Arduino\\libraries\\**",
                 "C:\\Users\\Kevin\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.1\\**"
             ],
-            "forcedInclude": [
-                "C:\\Users\\Kevin\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.1\\cores\\arduino\\Arduino.h"
-            ],
+            "forcedInclude": [],
             "defines": [
                 "USBCON"
             ],
