@@ -28,6 +28,9 @@ int AUX_CONTADOR = 0;
 int AUX_INCREMENTAR = 0;
 int AUX_DECREMENTAR = 0;
 int OPCION = 1;
+// Antirrebote para entradas con interrupts
+unsigned long TH_ISR = 150;
+unsigned long TH_LAST_TIME_OUT = 0;
 
 struct Dispenser_Values{
   int Price=12;       // Price Max Bottle
@@ -282,8 +285,12 @@ void ConfigMode(){
     }
 }
 void ContadorCambio(){
-    Cambio++;
-    VALUES.Current_Money -= 1;
+    if((millis()-TH_LAST_TIME_OUT) > TH_ISR){
+        // Activar flags
+        Cambio++;
+        VALUES.Current_Money -= 1;
+        TH_LAST_TIME_OUT = millis();
+    }
     if (Cambio >= SaldoCambio) 
     {
         digitalWrite(S3,0);
