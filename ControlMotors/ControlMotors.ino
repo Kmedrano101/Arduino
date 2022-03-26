@@ -1,7 +1,7 @@
 /*
     Proyecto: Control de Motores Paso a Paso
     Desarrollador: Bittron
-    Fecha: 24/03/2022
+    Fecha: 26/03/2022
     Descripcion general: Version Motores V0.1
 
 */
