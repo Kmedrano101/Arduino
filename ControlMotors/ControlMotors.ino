@@ -24,11 +24,11 @@
 #define IN_ERROR_S3 12
 #define IN_ERROR_S4 13
 // ESTABLECER PINES DE SALIDA
-#define OUT_STEP_M1 4
-#define OUT_DIR_M1 5
-#define OUT_STEP_M2 6
-#define OUT_DIR_M2 7
-#define OUT_ENABLE_M1 8
+#define OUT_STEP_M1 5
+#define OUT_DIR_M1 6
+#define OUT_STEP_M2 7
+#define OUT_DIR_M2 8
+#define OUT_ENABLE_M1 4
 #define OUT_ENABLE_M2 9
 
 // VARIABLES GLOBALES
@@ -83,6 +83,7 @@ void setup()
     VALUES.DIRECCION_MOTORES = 0;
     VALUES.TIEMPO_PARADA = 2300;
     delay(2500); // Retardo de inicio
+    Serial.println("Modo TEST v0.01");
 }
 void loop()
 {
@@ -113,18 +114,18 @@ void MoverMotores()
         {
             TM1 = millis();
             digitalWrite(OUT_STEP_M1, 1); // Validar sensibilidad de cambio 1 a 0 del driver
-            delay(1);
+            delay(10);
             digitalWrite(OUT_STEP_M1,0);
-            delay(1);
+            delay(10);
             VALUES.CONTADOR_PASOS_M1++;
         }
         if((millis() - TM2) > TIEMPO_VELOCIDAD_M2[VALUES.POSICION_CINTA])
         {
             TM2 = millis();
             digitalWrite(OUT_STEP_M2, 1); // Validar sensibilidad de cambio 1 a 0 del driver
-            delay(1);
+            delay(10);
             digitalWrite(OUT_STEP_M2,0);
-            delay(1);
+            delay(10);
             VALUES.CONTADOR_PASOS_M2++;
         }
     }
@@ -166,6 +167,8 @@ void paradasMotor()
     // Realizar las paradas intermedias de 15 segundos
     if(!MOTOR_RUN)
     {
+        Serial.print("/nCantidad Pasos por Parada: ");
+        Serial.print(VALUES.CONTADOR_PASOS_M1);
         if (!VALUES.DIRECCION_MOTORES)
         {   
             VALUES.POSICION_CINTA++;
