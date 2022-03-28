@@ -29,7 +29,11 @@
 #define OUT_STEP_M2 7
 #define OUT_DIR_M2 8
 #define OUT_ENABLE_M1 4
-#define OUT_ENABLE_M2 9
+//#define OUT_ENABLE_M2 9
+// Configuracion de velocidad de motor
+#define DMODE0 9
+#define DMODE1 10
+#define DMODE2 11
 
 // VARIABLES GLOBALES
 struct Process_Values{
@@ -39,6 +43,7 @@ struct Process_Values{
   unsigned int DIRECCION_MOTORES = 0; // 0 Direccion adelante, 1 direccion volver 
   int status=0; // Estado de funcionamiento, 1: En falla, 2: Normal y 3: Con errores no criticos (Puede seguir funcionando)
   unsigned long TIEMPO_PARADA = 15000; // Tiempo de paradas intermedias
+  unsigned long PASOS_SECCION = 0; // Variable para calibrar y determinar la cantidad de pasos del motor hasta primera parada
 };
 Process_Values VALUES;
 unsigned int EEPROM_DIR = 0;
@@ -51,6 +56,9 @@ const int TH_Sensors = 120;
 volatile unsigned int Estado_Sen1 = 0;
 volatile unsigned int Estado_Sen2 = 0;
 unsigned int FError = 0;
+
+// Posibilidad de MODO por pasos en caso de fallas de sensores
+
 
 // VARIABLES DE TIEMPO AUXILIARES
 volatile unsigned long TH_TimeS1 = 0;
@@ -74,16 +82,23 @@ void setup()
     pinMode(OUT_STEP_M2, OUTPUT);
     pinMode(OUT_DIR_M2, OUTPUT);
     pinMode(OUT_ENABLE_M1, OUTPUT);
-    pinMode(OUT_ENABLE_M2, OUTPUT);
+    pinMode(DMODE0, OUTPUT);
+    pinMode(DMODE1, OUTPUT);
+    pinMode(DMODE2, OUTPUT);
+    // Iniciar configuracion de motores (Determinar si la velocidad sera modificable para guardar en memorio EEPROM)
+    digitalWrite(DMODE0, 0);
+    digitalWrite(DMODE1, 1);
+    digitalWrite(DMODE2, 1);
+    //pinMode(OUT_ENABLE_M2, OUTPUT);
     Serial.begin(9600);
     digitalWrite(OUT_ENABLE_M1, 1);
-    digitalWrite(OUT_ENABLE_M2, 1);
+    //digitalWrite(OUT_ENABLE_M2, 1);
     MOTOR_RUN = true;
     restablecerValores();
     VALUES.DIRECCION_MOTORES = 0;
     VALUES.TIEMPO_PARADA = 2300;
     delay(2500); // Retardo de inicio
-    Serial.println("Modo TEST v0.01");
+    Serial.println("Modo TEST v0.02");
 }
 void loop()
 {
@@ -114,18 +129,18 @@ void MoverMotores()
         {
             TM1 = millis();
             digitalWrite(OUT_STEP_M1, 1); // Validar sensibilidad de cambio 1 a 0 del driver
-            delay(10);
+            delayMicroseconds(340);
             digitalWrite(OUT_STEP_M1,0);
-            delay(10);
+            delayMicroseconds(340);
             VALUES.CONTADOR_PASOS_M1++;
         }
         if((millis() - TM2) > TIEMPO_VELOCIDAD_M2[VALUES.POSICION_CINTA])
         {
             TM2 = millis();
             digitalWrite(OUT_STEP_M2, 1); // Validar sensibilidad de cambio 1 a 0 del driver
-            delay(10);
+            delayMicroseconds(340);
             digitalWrite(OUT_STEP_M2,0);
-            delay(10);
+            delayMicroseconds(340);
             VALUES.CONTADOR_PASOS_M2++;
         }
     }
@@ -160,7 +175,6 @@ void detertarFallas()
         FError = 1;
         // Deteminar el tipo de error para notificar 
     }
-    
 }
 void paradasMotor()
 {
@@ -205,7 +219,7 @@ void BloquearMotores()
 {
     // Apagar o bloquear Motores
     digitalWrite(OUT_ENABLE_M1, 0);
-    digitalWrite(OUT_ENABLE_M2, 0);
+    //digitalWrite(OUT_ENABLE_M2, 0);
     MOTOR_RUN = false;
 }
 // FUNCIONES ISR
