@@ -14,6 +14,7 @@ unsigned long tiempo_revF = 0;
 int DMODE0 = 9;
 int DMODE1 = 10;
 int DMODE2 = 11;
+
 void setup() {
   // put your setup code here, to run once:
     pinMode(OUT_STEP_M1, OUTPUT);
@@ -33,7 +34,7 @@ void setup() {
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
+  // Determinar tiempo de retardo minimo para cambio de pulso steps
     digitalWrite(OUT_DIR_M1, 1);
     digitalWrite(OUT_DIR_M1, 2);
     tiempo_rev = millis();
