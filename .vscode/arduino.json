@@ -1,6 +1,7 @@
 {
-    "board": "arduino:avr:uno",
-    "sketch": "ControlMotors\\ControlMotors.ino",
+    "board": "arduino:avr:mega",
+    "sketch": "..\\Proyectos Arduino\\SerigrafiaMotores\\Test_Motores3.ino",
     "programmer": "ArduinoISP",
-    "port": "COM3"
+    "port": "COM3",
+    "configuration": "cpu=atmega2560"
 }
