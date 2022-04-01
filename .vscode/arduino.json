@@ -1,6 +1,6 @@
 {
     "board": "arduino:avr:mega",
-    "sketch": "..\\Proyectos Arduino\\SerigrafiaMotores\\Test_Motores3.ino",
+    "sketch": "TestMotor\\TestMotor.ino",
     "programmer": "ArduinoISP",
     "port": "COM3",
     "configuration": "cpu=atmega2560"
