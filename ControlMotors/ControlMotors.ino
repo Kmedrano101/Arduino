@@ -79,6 +79,8 @@ unsigned int AUX_CAMBIO_DIR = 1;
 unsigned int AUX_SEN = 1;
 unsigned int SEN1_ON = 0;
 unsigned int SEN2_ON = 0;
+unsigned int AUX_PARADA = 1;
+
 
 // Posibilidad de MODO por pasos en caso de fallas de sensores
 
@@ -101,6 +103,7 @@ void loop()
 {
     moverMotores();
     determinarDireccionMotores();
+    delay(1200);
 }
 
 // FUNCIONES STANDARD
@@ -111,6 +114,7 @@ void moverMotores()
     {
         // Activar direccion motores
         DEBUG(VALUES.POSICION_CINTA)
+        AUX_PARADA = 1;
         if(VALUES.DIRECCION_MOTORES)
         {
             digitalWrite(OUT_DIR_MIZQ, 1);
@@ -131,12 +135,30 @@ void moverMotores()
             digitalWrite(OUT_STEP_MDER, 0);
             delayMicroseconds(Retardos[VALUES.POSICION_CINTA]);
             VALUES.CONTADOR_PASOS++;
-            if (!digitalRead(IN_SENSOR_SINI) || !digitalRead(IN_SENSOR_SINT))
+
+            if ((!digitalRead(IN_SENSOR_SINI) || !digitalRead(IN_SENSOR_SINT)) && AUX_PARADA == 0)
             {
                 MOTOR_RUN = false;
                 TParadas = millis();
                 AUX_CAMBIO_DIR = 1;
                 break;
+            }
+            if (!digitalRead(IN_SENSOR_SINI) && Estado_Sen1 == 0)
+            {
+                Estado_Sen1 = 1;
+                DEBUG("SENSOR INI 1");
+                DEBUG(Estado_Sen1);
+            }
+            if (!digitalRead(IN_SENSOR_SINT) && Estado_Sen2 == 0)
+            {
+                Estado_Sen2 = 1;
+            }
+            if ((Estado_Sen1 == 1 && digitalRead(IN_SENSOR_SINI)))// || (Estado_Sen2 == 1 && digitalRead(IN_SENSOR_SINT)))
+            {
+                AUX_PARADA = 0;
+                Estado_Sen1 = 0;
+                Estado_Sen2 = 0;
+                DEBUG("SENSOR INI 0");
             }
         }
         // Notificar Exeption
@@ -154,14 +176,7 @@ void reiniciarProceso()
 void determinarDireccionMotores()
 {
     // Cuando los dos sensores detectan es posicion final
-    if (!digitalRead(IN_SENSOR_SINI))
-    {
-        Estado_Sen1 = 1;
-    }
-    if (!digitalRead(IN_SENSOR_SINT))
-    {
-        Estado_Sen2 = 1;
-    }
+    
     if(!MOTOR_RUN)
     {
         // VERIFICAR ESTO !!! Posicion real de los sensores
@@ -198,8 +213,8 @@ void determinarDireccionMotores()
             AUX_CAMBIO_DIR = 0;
             cambiarVelocidad();
         }
-        DEBUG("Cantidad Pasos por Parada:");
-        DEBUG(VALUES.CONTADOR_PASOS);
+        //DEBUG("Cantidad Pasos por Parada:");
+        //DEBUG(VALUES.CONTADOR_PASOS);
         // Posible error de sensor no detecto parada
         if (VALUES.POSICION_CINTA > 9)
         {
@@ -212,8 +227,6 @@ void determinarDireccionMotores()
             MOTOR_RUN = true;
             AUX_SEN = 1;
         }
-        Estado_Sen1 = 0;
-        Estado_Sen2 = 0; 
     }
     
 }
