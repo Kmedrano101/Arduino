@@ -34,9 +34,9 @@
 #define DMODE0_MIZQ 9
 #define DMODE1_MIZQ 10
 #define DMODE2_MIZQ 11
-#define DMODE0_MDER 21
-#define DMODE1_MDER 22
-#define DMODE2_MDER 23
+#define DMODE0_MDER 22
+#define DMODE1_MDER 23
+#define DMODE2_MDER 24
 
 // Directivas para realizar debugging
 #define DEBUG
@@ -61,15 +61,15 @@ struct Process_Values{
   unsigned int DIRECCION_MOTORES = 0; // 0 Direccion adelante, 1 direccion volver 
   int status=0; // Estado de funcionamiento, 1: En falla, 2: Normal y 3: Con errores no criticos (Puede seguir funcionando)
   unsigned long TIEMPO_PARADA = 1500; // Tiempo de paradas intermedias
-  unsigned long PASOS_SECCION[10] = {120000,121000,122000,123000,124000,125000,126000,127000,128000,129000}; // Variable para calibrar y determinar la cantidad de pasos del motor hasta primera parada
+  unsigned long PASOS_SECCION[10] = {120000,120000,120000,120000,120000,120000,120000,120000,120000,120000}; // Variable para calibrar y determinar la cantidad de pasos del motor hasta primera parada
   unsigned long BAUD_RATE = 9600;
 };
 Process_Values VALUES;
 // Variables globales
 unsigned int EEPROM_DIR = 0;
-const int CONFIG_MotorIZQ[7][4] = {{0,0,1},{0,1,0},{0,1,1},{1,0,0},{1,0,1},{1,1,0},{1,1,1}};
-const int CONFIG_MotorDER[7][3] = {{0,0,1},{0,1,0},{0,1,1},{1,0,0},{1,0,1},{1,1,0},{1,1,1}};
-int Retardos[10] = {340,420,500,580,660,750,830,910,990,1070};
+const int CONFIG_MotorIZQ[7][4] = {{0,0,1},{0,0,1},{0,0,1},{0,0,1},{0,0,1},{0,0,1},{0,0,1}};
+const int CONFIG_MotorDER[7][3] = {{0,0,1},{0,0,0},{0,0,1},{0,0,0},{0,0,1},{0,0,1},{0,0,1}};
+int Retardos[10] = {340,340,340,340,340,340,340,340,340,340};
 volatile bool MOTOR_RUN = true;
 const int TH_Sensors = 120;
 volatile unsigned int Estado_Sen1 = 0;
@@ -103,7 +103,6 @@ void loop()
 {
     moverMotores();
     determinarDireccionMotores();
-    delay(1200);
 }
 
 // FUNCIONES STANDARD
@@ -135,30 +134,12 @@ void moverMotores()
             digitalWrite(OUT_STEP_MDER, 0);
             delayMicroseconds(Retardos[VALUES.POSICION_CINTA]);
             VALUES.CONTADOR_PASOS++;
-
-            if ((!digitalRead(IN_SENSOR_SINI) || !digitalRead(IN_SENSOR_SINT)) && AUX_PARADA == 0)
+            
+            if (!MOTOR_RUN)
             {
-                MOTOR_RUN = false;
                 TParadas = millis();
                 AUX_CAMBIO_DIR = 1;
                 break;
-            }
-            if (!digitalRead(IN_SENSOR_SINI) && Estado_Sen1 == 0)
-            {
-                Estado_Sen1 = 1;
-                DEBUG("SENSOR INI 1");
-                DEBUG(Estado_Sen1);
-            }
-            if (!digitalRead(IN_SENSOR_SINT) && Estado_Sen2 == 0)
-            {
-                Estado_Sen2 = 1;
-            }
-            if ((Estado_Sen1 == 1 && digitalRead(IN_SENSOR_SINI)))// || (Estado_Sen2 == 1 && digitalRead(IN_SENSOR_SINT)))
-            {
-                AUX_PARADA = 0;
-                Estado_Sen1 = 0;
-                Estado_Sen2 = 0;
-                DEBUG("SENSOR INI 0");
             }
         }
         // Notificar Exeption
@@ -265,9 +246,9 @@ void configurarSalidas(){
 }
 void configurarEntradas(){
     pinMode(IN_SENSOR_SINI, INPUT_PULLUP);
-    //(digitalPinToInterrupt(IN_SENSOR_SINI), ISR_S1, FALLING); // Verficar porque falla interrupcion 
+    attachInterrupt(digitalPinToInterrupt(IN_SENSOR_SINI), ISR_S1, FALLING); // Verficar porque falla interrupcion 
     pinMode(IN_SENSOR_SINT, INPUT_PULLUP);
-    //attachInterrupt(digitalPinToInterrupt(IN_SENSOR_SINT), ISR_S2, FALLING);
+    attachInterrupt(digitalPinToInterrupt(IN_SENSOR_SINT), ISR_S2, FALLING);
     pinMode(IN_ERROR_S1, INPUT_PULLUP);
     pinMode(IN_ERROR_S2, INPUT_PULLUP);
     pinMode(IN_ERROR_S3, INPUT_PULLUP);
