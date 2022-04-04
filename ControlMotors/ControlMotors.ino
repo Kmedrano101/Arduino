@@ -1,8 +1,8 @@
 /*
     Proyecto: Control de Motores Paso a Paso
     Desarrollador: Bittron
-    Fecha: 01/04/2022
-    Descripcion general: Version Motores V0.3
+    Fecha: 04/04/2022
+    Descripcion general: Version Motores V1.0
 
 */
 
@@ -17,7 +17,7 @@
 // IMPORTAR LIBRERIAS
 #include <EEPROM.h>
 // ESTABLECER PINES DE ENTRADA
-#define IN_SENSOR_SINI 2 // Sensor Parada Final > Pin como entrada de Interrupcion
+#define IN_SENSOR_SFIN 2 // Sensor Parada Final > Pin como entrada de Interrupcion
 #define IN_SENSOR_SINT 3 // Sensor Parada Intermedias > Pin como entrada de Interrupcion
 #define IN_ERROR_S1 10
 #define IN_ERROR_S2 11
@@ -28,18 +28,11 @@
 #define OUT_DIR_MIZQ 6
 #define OUT_STEP_MDER 7
 #define OUT_DIR_MDER 8
-#define OUT_ENABLE_M 4
-//#define OUT_ENABLE_M2 9
-// Configuracion de velocidad de motor
-#define DMODE0_MIZQ 9
-#define DMODE1_MIZQ 10
-#define DMODE2_MIZQ 11
-#define DMODE0_MDER 22
-#define DMODE1_MDER 23
-#define DMODE2_MDER 24
+#define OUT_ENABLE_M1 4  // Motor izquierda     (Validar pin de salida)
+#define OUT_ENABLE_M2 9 // Motor derecha       (Validar pin de salida)
 
 // Directivas para realizar debugging
-#define DEBUG
+#define DEBUG // Quitar esta directiva para salir modo debug
 #ifdef DEBUG
 #define DEBUG(x) \
   Serial.print("DEBUG: ");  \
@@ -67,9 +60,7 @@ struct Process_Values{
 Process_Values VALUES;
 // Variables globales
 unsigned int EEPROM_DIR = 0;
-const int CONFIG_MotorIZQ[7][4] = {{0,0,1},{0,0,1},{0,0,1},{0,0,1},{0,0,1},{0,0,1},{0,0,1}};
-const int CONFIG_MotorDER[7][3] = {{0,0,1},{0,0,0},{0,0,1},{0,0,0},{0,0,1},{0,0,1},{0,0,1}};
-int Retardos[10] = {340,340,340,340,340,340,340,340,340,340};
+int Retardos[10] = {780,790,1280,1680,1880,2080,2280,2680,2880,3780}; // Cambio de velocidad
 volatile bool MOTOR_RUN = true;
 const int TH_Sensors = 120;
 volatile unsigned int Estado_Sen1 = 0;
@@ -80,10 +71,7 @@ unsigned int AUX_SEN = 1;
 unsigned int SEN1_ON = 0;
 unsigned int SEN2_ON = 0;
 unsigned int AUX_PARADA = 1;
-
-
-// Posibilidad de MODO por pasos en caso de fallas de sensores
-
+unsigned int AUX_SENTIDO = 0;
 
 // VARIABLES DE TIEMPO AUXILIARES
 volatile unsigned long TH_TimeS1 = 0;
@@ -114,34 +102,22 @@ void moverMotores()
         // Activar direccion motores
         DEBUG(VALUES.POSICION_CINTA)
         AUX_PARADA = 1;
-        if(VALUES.DIRECCION_MOTORES)
+        if(!VALUES.DIRECCION_MOTORES)
         {
-            digitalWrite(OUT_DIR_MIZQ, 1);
-            digitalWrite(OUT_DIR_MIZQ, 1);
+            digitalWrite(OUT_ENABLE_M1, 0);
+            digitalWrite(OUT_ENABLE_M2, 1);
+            digitalWrite(OUT_DIR_MDER, 1);
+            pasosMotores(OUT_STEP_MDER);
         }
         else
         {
+            digitalWrite(OUT_ENABLE_M1, 1);
+            digitalWrite(OUT_ENABLE_M2, 0);
             digitalWrite(OUT_DIR_MIZQ, 0);
-            digitalWrite(OUT_DIR_MIZQ, 0);
+            digitalWrite(OUT_DIR_MDER, 0);
+            pasosMotores(OUT_STEP_MIZQ);
         }
         
-        for (long i = 0; i < VALUES.PASOS_SECCION[VALUES.POSICION_CINTA]; i++) // Determinar el maxino numero de pasos por seccion
-        {
-            digitalWrite(OUT_STEP_MIZQ, 1);
-            digitalWrite(OUT_STEP_MDER, 1);
-            delayMicroseconds(340);
-            digitalWrite(OUT_STEP_MIZQ, 0);
-            digitalWrite(OUT_STEP_MDER, 0);
-            delayMicroseconds(Retardos[VALUES.POSICION_CINTA]);
-            VALUES.CONTADOR_PASOS++;
-            
-            if (!MOTOR_RUN)
-            {
-                TParadas = millis();
-                AUX_CAMBIO_DIR = 1;
-                break;
-            }
-        }
         // Notificar Exeption
         // En caso de terminar for y no detectar sensores para apagar los motores
     }
@@ -150,6 +126,23 @@ void moverMotores()
         BloquearMotores();
     }
 }
+void pasosMotores(int Motor)
+{
+    for (long i = 0; i < VALUES.PASOS_SECCION[VALUES.POSICION_CINTA]; i++) // Determinar el maxino numero de pasos por seccion
+        {
+            digitalWrite(Motor, 1);
+            delayMicroseconds(720);
+            digitalWrite(Motor, 0);
+            delayMicroseconds(Retardos[VALUES.POSICION_CINTA]);
+            VALUES.CONTADOR_PASOS++;
+            if (!MOTOR_RUN)
+            {
+                TParadas = millis();
+                AUX_CAMBIO_DIR = 1;
+                break;
+            }
+        }
+}
 void reiniciarProceso()
 {
     // Reiniciar todos los valores y volver a estado inicial
@@ -157,21 +150,23 @@ void reiniciarProceso()
 void determinarDireccionMotores()
 {
     // Cuando los dos sensores detectan es posicion final
-    
     if(!MOTOR_RUN)
     {
         // VERIFICAR ESTO !!! Posicion real de los sensores
-        if (Estado_Sen1 == 1 && Estado_Sen2 == 1)
+        /*if (Estado_Sen1 == 1 && Estado_Sen2 == 1)
         {
             VALUES.DIRECCION_MOTORES = 1;
+            AUX_SENTIDO = 1;
             AUX_SEN = 0;
         }
         // Cuando el sensor 1 detecta es la posicion inicial
-        if(Estado_Sen1 == 1 && Estado_Sen2 == 0) // Verificar estados de sensor en estado inicial y final
+        if(Estado_Sen1 == 0 && Estado_Sen2 == 1 && AUX_SENTIDO == 0) // Verificar estados de sensor en estado inicial y final
         {
             VALUES.DIRECCION_MOTORES = 0;
             AUX_SEN = 0;
-        }
+        }*/
+        Estado_Sen1 = 0;
+        Estado_Sen2 = 0;
         // Validacoin por conteo de posicion, prioridad sensores
         if(VALUES.POSICION_CINTA==9)
         {
@@ -180,6 +175,7 @@ void determinarDireccionMotores()
         if(VALUES.POSICION_CINTA==0)
         {
             VALUES.DIRECCION_MOTORES = 0;
+            AUX_SENTIDO = 0;
         }
         if (AUX_CAMBIO_DIR)
         {
@@ -192,10 +188,7 @@ void determinarDireccionMotores()
                     VALUES.POSICION_CINTA--;
                 }
             AUX_CAMBIO_DIR = 0;
-            cambiarVelocidad();
         }
-        //DEBUG("Cantidad Pasos por Parada:");
-        //DEBUG(VALUES.CONTADOR_PASOS);
         // Posible error de sensor no detecto parada
         if (VALUES.POSICION_CINTA > 9)
         {
@@ -235,18 +228,12 @@ void configurarSalidas(){
     pinMode(OUT_DIR_MIZQ, OUTPUT);
     pinMode(OUT_STEP_MDER, OUTPUT);
     pinMode(OUT_DIR_MDER, OUTPUT);
-    pinMode(OUT_ENABLE_M, OUTPUT);
-    // Configuracion de motores
-    pinMode(DMODE0_MIZQ, OUTPUT);
-    pinMode(DMODE1_MIZQ, OUTPUT);
-    pinMode(DMODE2_MIZQ, OUTPUT);
-    pinMode(DMODE0_MDER, OUTPUT);
-    pinMode(DMODE1_MDER, OUTPUT);
-    pinMode(DMODE2_MDER, OUTPUT);
+    pinMode(OUT_ENABLE_M1, OUTPUT);
+    pinMode(OUT_ENABLE_M2, OUTPUT);
 }
 void configurarEntradas(){
-    pinMode(IN_SENSOR_SINI, INPUT_PULLUP);
-    attachInterrupt(digitalPinToInterrupt(IN_SENSOR_SINI), ISR_S1, FALLING); // Verficar porque falla interrupcion 
+    pinMode(IN_SENSOR_SFIN, INPUT_PULLUP);
+    attachInterrupt(digitalPinToInterrupt(IN_SENSOR_SFIN), ISR_S1, FALLING); // Verficar porque falla interrupcion 
     pinMode(IN_SENSOR_SINT, INPUT_PULLUP);
     attachInterrupt(digitalPinToInterrupt(IN_SENSOR_SINT), ISR_S2, FALLING);
     pinMode(IN_ERROR_S1, INPUT_PULLUP);
@@ -256,18 +243,17 @@ void configurarEntradas(){
 }
 void configuracionExtra(){
     Serial.begin(VALUES.BAUD_RATE);
-    digitalWrite(OUT_ENABLE_M, 1);
     //restablecerValores();
-    cambiarVelocidad();
     //VALUES.DIRECCION_MOTORES = 0;
     //VALUES.TIEMPO_PARADA = 2300;
     delay(1500); // Retardo de inicio
-    DEBUG("Modo TEST v0.03");
+    DEBUG("Modo TEST v1.0");
 }
 void BloquearMotores()
 {
     // Apagar o bloquear Motores
-    digitalWrite(OUT_ENABLE_M, 0);
+    digitalWrite(OUT_ENABLE_M1, 0);
+    digitalWrite(OUT_ENABLE_M2, 0);
     MOTOR_RUN = false;
 }
 // FUNCIONES ISR
@@ -291,13 +277,4 @@ void ISR_S2()
     Estado_Sen2 = 1;
   }
 }
-void cambiarVelocidad()
-{
-  // Segun la direcion de los motores se cambia el sentido 
-  digitalWrite(DMODE0_MIZQ, CONFIG_MotorIZQ[VALUES.POSICION_CINTA][0]);
-  digitalWrite(DMODE1_MIZQ, CONFIG_MotorIZQ[VALUES.POSICION_CINTA][1]);
-  digitalWrite(DMODE2_MIZQ, CONFIG_MotorIZQ[VALUES.POSICION_CINTA][2]);
-  digitalWrite(DMODE0_MDER, CONFIG_MotorDER[VALUES.POSICION_CINTA][0]);
-  digitalWrite(DMODE1_MDER, CONFIG_MotorDER[VALUES.POSICION_CINTA][1]);
-  digitalWrite(DMODE2_MDER, CONFIG_MotorDER[VALUES.POSICION_CINTA][2]);
-}
+
