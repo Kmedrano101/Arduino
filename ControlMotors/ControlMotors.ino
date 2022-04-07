@@ -81,6 +81,7 @@ unsigned int SEN2_ON = 0;
 unsigned int AUX_PARADA = 1;
 unsigned int AUX_SENTIDO = 0;
 volatile unsigned int Errores[4] = {0,0,0,0}; // Errores de drivers, {M1_L1,M1_L2,M2_L1,M2_L2}
+unsigned int AUX_LLAMANDO = 0;
 
 // VARIABLES DE TIEMPO AUXILIARES
 volatile unsigned long TH_TimeS1 = 0;
@@ -277,28 +278,33 @@ void BloquearMotores()
 }
 void llamar(){
   // Función que permite llamar a un celular local
+  digitalWrite(PIN_MOVIL, 1);
   while(!SIM900.available())
   {
       DEBUG(".");
   }
-  digitalWrite(PIN_MOVIL, 1);    
-  DEBUG("Encendiendo Movil");
-  delay(200);
-  SIM900.println("AT");
-  DEBUG("Esperando red");
-  delay(1500);
-  DEBUG("Conectando con operador");
-  SIM900.println("AT+COPS?");
-  delay(500);
-  DEBUG("Llamando");
-  SIM900.println("ATD" + TELEFONO + ";"); // Comando AT para realizar una llamada
+  if (!AUX_LLAMANDO)
+  {
+    DEBUG("Encendiendo Movil");
+    delay(200);
+    SIM900.println("AT");
+    DEBUG("Esperando red");
+    delay(1500);
+    DEBUG("Conectando con operador");
+    SIM900.println("AT+COPS?");
+    delay(500);
+    DEBUG("Llamando");
+    SIM900.println("ATD" + TELEFONO + ";"); // Comando AT para realizar una llamada    /* code */
+    AUX_LLAMANDO = 1;
+  }
   if (millis() - TLlamada_Actual > TLlamada)
   {
     SIM900.println("ATH"); // Cuelga la llamada
     delay(200);
     DEBUG("Llamada finalizada");
     digitalWrite(PIN_MOVIL, 0);
-    TLlamada_Actual = millis();    
+    TLlamada_Actual = millis();
+    AUX_LLAMANDO = 0;    
   } 
 }
 // FUNCIONES ISR
