@@ -34,8 +34,8 @@ unsigned long TH_LAST_TIME_OUT = 0;
 
 struct Dispenser_Values{
   int Price=12;       // Price Max Bottle
-  unsigned int Times[12];   // 0 - 11 -> Tiempos de llenado Agua, Guarda valor el segundos
-  volatile unsigned int Current_Money; 
+  unsigned int Times[12] = {2,3,9,15,19,23,26,30,34,38,42,46};   // 0 - 11 -> Tiempos de llenado Agua, Guarda valor el segundos
+  volatile unsigned int Current_Money = 0; 
   int status;
 };
 Dispenser_Values VALUES;
@@ -84,20 +84,7 @@ void setup()
     lcd.print(VALUES.Price);
   	GetValues();
     //VALUES.Price = 12;
-  	delay(1200);  
-  	// TEST 
-    //VALUES.Times[0] = 2;
-    //VALUES.Times[1] = 3;
-    //VALUES.Times[2] = 2;
-  	//VALUES.Times[3] = 3;
-    //VALUES.Times[4] = 2;
-    //VALUES.Times[5] = 3;
-  	//VALUES.Times[6] = 2;
-    //VALUES.Times[7] = 3;
-    //VALUES.Times[8] = 3;
-  	//VALUES.Times[9] = 12;
-    //VALUES.Times[10] = 12;
-    //VALUES.Times[11] = 12;
+  	delay(1200); 
 }
 // Loop
 void loop()
@@ -181,7 +168,7 @@ void SeleccionDispensador(){
             {
                 SaldoCambio = VALUES.Current_Money - VALUES.Price;
                 VALUES.Current_Money = SaldoCambio;
-                FlagDispensador = sizeof(VALUES.Price); // En caso de Saldo Actual mayor a doce se activa temp 12(vector 11)
+                FlagDispensador = 12; // En caso de Saldo Actual mayor a doce se activa temp 12(vector 11)
                 StartTime = millis();
                 StartTimeInactividad = millis();
             }
