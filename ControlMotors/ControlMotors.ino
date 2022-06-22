@@ -1,18 +1,11 @@
 /*
     Proyecto: Control de Motores Paso a Paso
     Desarrollador: Bittron
-    Fecha: 07/04/2022
-    Descripcion general: Version Motores V1.01
-
+    Fecha: 15/06/2022
+    Descripcion general: Version Motores V1.4
+    Añadido SIM900 Ultima Modificación 22-06-22
 */
 
-/*
-    - Validacoin de Motor en avance por secciones con contador de pasos y tiempo
-    - Ajustar corriente maximo en controlador driver de motor
-    - Notificacion de errores del driver, Bloqueo del funcionamiento en caso de error critico, caso contrario solo notificacion
-    - 60 RPM como velocidad maxima de cada motor
-
-*/
 
 // IMPORTAR LIBRERIAS
 #include <EEPROM.h>
@@ -23,17 +16,17 @@
 #define IN_ERROR_M1_L1 18
 #define IN_ERROR_M1_L2 19
 #define IN_ERROR_M2_L1 20
-#define IN_ERROR_M2_L2 21
+#define IN_ERROR_M2_L2 21 
 // ESTABLECER PINES DE SALIDA
 #define OUT_STEP_MIZQ 5
 #define OUT_DIR_MIZQ 6
 #define OUT_STEP_MDER 7
 #define OUT_DIR_MDER 8
-#define OUT_ENABLE_M1 22  // Motor izquierda     (Validar pin de salida)
-#define OUT_ENABLE_M2 23 // Motor derecha       (Validar pin de salida)
+#define OUT_ENABLE_M1 52  // Motor izquierda     (Validar pin de salida)
+#define OUT_ENABLE_M2 50 // Motor derecha       (Validar pin de salida)
 #define PIN_MOVIL 10
-#define MOVIL_TX 18
-#define MOVIL_RX 19
+#define MOVIL_TX 14 //Arduino
+#define MOVIL_RX 15 //Arduino
 
 // Directivas para realizar debugging
 //Serial.print(__FILE__); 
@@ -57,7 +50,7 @@ struct Process_Values {
   // long CONTADOR_PASOS_M2 = 0;
   unsigned int DIRECCION_MOTORES = 0; // 0 Direccion adelante, 1 direccion volver
   int status = 0; // Estado de funcionamiento, 1: En falla, 2: Normal y 3: Con errores no criticos (Puede seguir funcionando)
-  unsigned long TIEMPO_PARADA = 1500; // Tiempo de paradas intermedias
+  unsigned long TIEMPO_PARADA = 2000; // Tiempo de paradas intermedias
   unsigned long PASOS_SECCION[10] = {120000, 120000, 120000, 120000, 120000, 120000, 120000, 120000, 120000, 120000}; // Variable para calibrar y determinar la cantidad de pasos del motor hasta primera parada
   unsigned long BAUD_RATE = 9600;
   unsigned int NUMERO_PARADAS = 10; // 9 + 1(que es 0) = 10 paradas
@@ -80,7 +73,7 @@ unsigned int SEN1_ON = 0;
 unsigned int SEN2_ON = 0;
 unsigned int AUX_PARADA = 1;
 unsigned int AUX_SENTIDO = 0;
-volatile unsigned int Errores[4] = {0,0,0,0}; // Errores de drivers, {M1_L1,M1_L2,M2_L1,M2_L2}
+volatile unsigned int Errores[5] = {0,0,0,0,0}; // Errores de drivers, {M1_L1,M1_L2,M2_L1,M2_L2,ParadaMaximo}
 unsigned int AUX_LLAMANDO = 0;
 
 // VARIABLES DE TIEMPO AUXILIARES
@@ -96,9 +89,11 @@ unsigned long TParadas = 0;
 unsigned long TLlamada = 10000; // Tiempo de llamada
 unsigned long TLlamada_Actual = 0;
 
+unsigned long TMaximoParada = 0;
+
 // Variables SIM900
 SoftwareSerial SIM900(MOVIL_RX, MOVIL_TX); // Validar Pines
-String TELEFONO = "635728722";
+String TELEFONO = "+34635728722";
 
 void setup()
 {
@@ -109,11 +104,9 @@ void setup()
 }
 void loop()
 {
-  if (!FError)
-  {
-    moverMotores();
-    determinarDireccionMotores();     
-  }
+  alertaFallas();
+  moverMotores();
+  determinarDireccionMotores();     
   // Condicion para reestablecer errores
 }
 
@@ -152,19 +145,32 @@ void moverMotores()
 }
 void pasosMotores(int Motor, long retardo)
 {
+  TMaximoParada = millis();
   for (long i = 0; i < VALUES.PASOS_SECCION[VALUES.POSICION_CINTA]; i++) // Determinar el maxino numero de pasos por seccion
   {
     digitalWrite(Motor, 1);
     delayMicroseconds(720);
     digitalWrite(Motor, 0);
     delayMicroseconds(retardo);
+    DEBUG("Numero de pasos: ");
+    DEBUG(i);
     VALUES.CONTADOR_PASOS++;
-    if (!MOTOR_RUN)
+    if (!MOTOR_RUN || millis() - TMaximoParada > VALUES.TIEMPO_PARADA+3000) 
     {
       TParadas = millis();
       AUX_CAMBIO_DIR = 1;
+      TMaximoParada = millis();
+      Errores[4] = 1;
+      FError = 1;
       break;
     }
+  }
+  // Una vez termina de dar todos los pasos se verifica si el sensor esta activado, en caso contrario significa que el motor se volvera 
+  // a activar en el siguiente ciclo de ejecución
+  if(!digitalRead(IN_SENSOR_SFIN) || !digitalRead(IN_SENSOR_SINT))
+  {
+    // Se ha detectado que el sensor ha dejado de detectar:
+    FError = 1;
   }
 }
 void reiniciarProceso()
@@ -174,17 +180,13 @@ void reiniciarProceso()
   Errores[1]=0;
   Errores[2]=0;
   Errores[3]=0;
+  Errores[4]=0;
 }
 void determinarDireccionMotores()
 {
   // Cuando los dos sensores detectan es posicion final
   if (!MOTOR_RUN)
   {
-    // Deteccio de ambos sensores para cambiar sentido
-    if (Estado_Sen1 == 1 && Estado_Sen2 == 1)
-      {
-        VALUES.DIRECCION_MOTORES = 1;
-      }
     Estado_Sen1 = 0;
     Estado_Sen2 = 0;
     // Validacoin por conteo de posicion, prioridad sensores
@@ -251,7 +253,7 @@ void configurarSalidas() {
 }
 void configurarEntradas() {
   pinMode(IN_SENSOR_SFIN, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(IN_SENSOR_SFIN), ISR_S1_SFIN, FALLING); // Verficar porque falla interrupcion
+  attachInterrupt(digitalPinToInterrupt(IN_SENSOR_SFIN), ISR_S1_SFIN, FALLING); // 
   pinMode(IN_SENSOR_SINT, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(IN_SENSOR_SINT), ISR_S2_SINT, FALLING);
   pinMode(IN_ERROR_M1_L1, INPUT_PULLUP);
@@ -267,7 +269,7 @@ void configuracionExtra() {
   Serial.begin(VALUES.BAUD_RATE);
   delay(1500); // Retardo de inicio
   SIM900.begin(19200);  // Iniciar comunicación SIM
-  DEBUG("Modo TEST v1.1");
+  DEBUG("Modo TEST 2.0");
 }
 void BloquearMotores()
 {
