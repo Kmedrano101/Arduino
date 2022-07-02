@@ -13,21 +13,26 @@
 // ESTABLECER PINES DE ENTRADA
 #define IN_SENSOR_SFIN 2 // Sensor Parada Final > Pin como entrada de Interrupcion
 #define IN_SENSOR_SINT 3 // Sensor Parada Intermedias > Pin como entrada de Interrupcion
+#define OUT_STEP_M1 5 // MOTOR 1
+#define OUT_DIR_M1 6 // MOTOR 1
+#define OUT_STEP_M2 7 // MOTOR 2
+#define OUT_DIR_M2 8 // MOTOR 2
 #define IN_ERROR_M1_L1 18
 #define IN_ERROR_M1_L2 19
 #define IN_ERROR_M2_L1 20
 #define IN_ERROR_M2_L2 21 
 // ESTABLECER PINES DE SALIDA
-#define OUT_STEP_MIZQ 5
-#define OUT_DIR_MIZQ 6
-#define OUT_STEP_MDER 7
-#define OUT_DIR_MDER 8
 #define OUT_ENABLE_M1 52  // Motor izquierda     (Validar pin de salida)
 #define OUT_ENABLE_M2 50 // Motor derecha       (Validar pin de salida)
 #define PIN_MOVIL 10
 #define MOVIL_TX 14 //Arduino
 #define MOVIL_RX 15 //Arduino
+// DEFINIR PINES ACCELSTEPPER DRIVER
+#include <AccelStepper.h>
 
+// DEFINIR OBJETOS MOTORES PARA CONTROL
+AccelStepper Motor1(AccelStepper::DRIVER, OUT_STEP_M1, OUT_DIR_M1);
+AccelStepper Motor2(AccelStepper::DRIVER, OUT_STEP_M2, OUT_DIR_M2);
 // Directivas para realizar debugging
 //Serial.print(__FILE__); 
 //  Serial.print(':');
@@ -104,7 +109,7 @@ void setup()
 }
 void loop()
 {
-  alertaFallas();
+  //alertaFallas();
   moverMotores();
   determinarDireccionMotores();     
   // Condicion para reestablecer errores
@@ -113,64 +118,48 @@ void loop()
 // FUNCIONES STANDARD
 void moverMotores()
 {
-  // Acticar motores
   if (MOTOR_RUN)
   {
-    // Activar direccion motores
+  // Activar direccion motores
     DEBUG(VALUES.POSICION_CINTA)
     AUX_PARADA = 1;
+    digitalWrite(OUT_ENABLE_M1, 1);
+    digitalWrite(OUT_ENABLE_M2, 1);
     if (!VALUES.DIRECCION_MOTORES)
     {
-      digitalWrite(OUT_ENABLE_M1, 0);
-      digitalWrite(OUT_ENABLE_M2, 1);
-      digitalWrite(OUT_DIR_MDER, 1);
-      pasosMotores(OUT_STEP_MDER, VelocidadIda[VALUES.POSICION_CINTA]);
+      // Segun la direccion se activan los pasos en positivo o negativo
+      Motor1.moveTo(VALUES.PASOS_SECCION[VALUES.POSICION_CINTA]);
+      Motor2.moveTo(VALUES.PASOS_SECCION[VALUES.POSICION_CINTA]);
+      pasosMotores();
     }
     else
     {
-      digitalWrite(OUT_ENABLE_M1, 1);
-      digitalWrite(OUT_ENABLE_M2, 0);
-      digitalWrite(OUT_DIR_MIZQ, 0);
-      digitalWrite(OUT_DIR_MDER, 0);
-      pasosMotores(OUT_STEP_MIZQ, VelocidadVuelta[VALUES.POSICION_CINTA]);
+      Motor1.moveTo(-VALUES.PASOS_SECCION[VALUES.POSICION_CINTA]);
+      Motor2.moveTo(-VALUES.PASOS_SECCION[VALUES.POSICION_CINTA]);
+      pasosMotores();
     }
 
-    // Notificar Exeption
-    // En caso de terminar for y no detectar sensores para apagar los motores
   }
   else
   {
     BloquearMotores();
   }
 }
-void pasosMotores(int Motor, long retardo)
+void pasosMotores()
 {
-  TMaximoParada = millis();
   for (long i = 0; i < VALUES.PASOS_SECCION[VALUES.POSICION_CINTA]; i++) // Determinar el maxino numero de pasos por seccion
   {
-    digitalWrite(Motor, 1);
-    delayMicroseconds(720);
-    digitalWrite(Motor, 0);
-    delayMicroseconds(retardo);
+    Motor1.run();
+    Motor2.run();
     DEBUG("Numero de pasos: ");
     DEBUG(i);
     VALUES.CONTADOR_PASOS++;
-    if (!MOTOR_RUN || millis() - TMaximoParada > VALUES.TIEMPO_PARADA+3000) 
+    if (!MOTOR_RUN) 
     {
       TParadas = millis();
       AUX_CAMBIO_DIR = 1;
-      TMaximoParada = millis();
-      Errores[4] = 1;
-      FError = 1;
       break;
     }
-  }
-  // Una vez termina de dar todos los pasos se verifica si el sensor esta activado, en caso contrario significa que el motor se volvera 
-  // a activar en el siguiente ciclo de ejecución
-  if(!digitalRead(IN_SENSOR_SFIN) || !digitalRead(IN_SENSOR_SINT))
-  {
-    // Se ha detectado que el sensor ha dejado de detectar:
-    FError = 1;
   }
 }
 void reiniciarProceso()
@@ -243,17 +232,13 @@ void guardarValores()
   EEPROM.put(EEPROM_DIR, VALUES);
 }
 void configurarSalidas() {
-  pinMode(OUT_STEP_MIZQ, OUTPUT);
-  pinMode(OUT_DIR_MIZQ, OUTPUT);
-  pinMode(OUT_STEP_MDER, OUTPUT);
-  pinMode(OUT_DIR_MDER, OUTPUT);
   pinMode(OUT_ENABLE_M1, OUTPUT);
   pinMode(OUT_ENABLE_M2, OUTPUT);
   pinMode(PIN_MOVIL, OUTPUT);
 }
 void configurarEntradas() {
   pinMode(IN_SENSOR_SFIN, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(IN_SENSOR_SFIN), ISR_S1_SFIN, FALLING); // 
+  attachInterrupt(digitalPinToInterrupt(IN_SENSOR_SFIN), ISR_S1_SFIN, FALLING); 
   pinMode(IN_SENSOR_SINT, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(IN_SENSOR_SINT), ISR_S2_SINT, FALLING);
   pinMode(IN_ERROR_M1_L1, INPUT_PULLUP);
@@ -266,21 +251,32 @@ void configurarEntradas() {
   attachInterrupt(digitalPinToInterrupt(IN_SENSOR_SINT), ISR_S6_M2L2, FALLING);
 }
 void configuracionExtra() {
+  // CONFIGURAR MOTOR 1
+  Motor1.setMaxSpeed(200.0);
+  Motor1.setAcceleration(200.0);
+  Motor1.moveTo(VALUES.PASOS_SECCION[0]);
+  // CONFIGURAR MOTOR 2
+  Motor2.setMaxSpeed(200.0);
+  Motor2.setAcceleration(200.0);
+  Motor2.moveTo(VALUES.PASOS_SECCION[0]);
   Serial.begin(VALUES.BAUD_RATE);
-  delay(1500); // Retardo de inicio
   SIM900.begin(19200);  // Iniciar comunicación SIM
-  DEBUG("Modo TEST 2.0");
+  DEBUG("Modo Test 3.0");
+  delay(1500); // Retardo de inicio
 }
 void BloquearMotores()
 {
   // Apagar o bloquear Motores
   digitalWrite(OUT_ENABLE_M1, 0);
   digitalWrite(OUT_ENABLE_M2, 0);
+  Motor1.stop();
+  Motor2.stop();
   MOTOR_RUN = false;
 }
 void llamar(){
   // Función que permite llamar a un celular local
   digitalWrite(PIN_MOVIL, 1);
+  // Agregar salida del bucle en caso de no respuesta del modulo SIM en X tiempo
   while(!SIM900.available())
   {
       DEBUG(".");
